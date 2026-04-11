@@ -10,3 +10,8 @@ passlib[bcrypt]
 python-dotenv
 twilio
 python-multipart
+redis
+sqlmodel
+asyncpg
+itsdangerous
+greenlet
