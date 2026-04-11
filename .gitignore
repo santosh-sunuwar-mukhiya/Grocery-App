@@ -1,0 +1,6 @@
+.env
+.idea/
+.python-version
+__pycache__/
+*.pyc
+test_*.py
