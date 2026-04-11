@@ -1,16 +1,22 @@
-# This is a sample Python script.
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from scalar_fastapi import get_scalar_api_reference
 
-# Press ⌃R to execute it or replace it with your code.
-# Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
-
-
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
+from app.api.router import master_router
+from app.database.session import create_db_tables
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Create tables on startup (use Alembic in production)
+    await create_db_tables()
+    yield
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+
+app = FastAPI(title="Grocery Store API", lifespan=lifespan)
+app.include_router(master_router)
+
+
+@app.get("/scalar", include_in_schema=False)
+def scalar_docs():
+    return get_scalar_api_reference(openapi_url=app.openapi_url, title="Grocery API")
