@@ -1,0 +1,236 @@
+# =============================================================================
+# database/session.py
+# =============================================================================
+# This file is the single source of truth for everything database-related:
+#   1. Engine  — the connection pool (one per app lifetime)
+#   2. Tables  — auto-create on startup
+#   3. Session — one unit of work, injected into every route via FastAPI Depends
+#
+# CHOOSING SYNC vs ASYNC:
+#   Use the SYNC version when:
+#     - You're building a small/internal tool and simplicity > throughput
+#     - Your ORM or library doesn't support async (e.g. some legacy drivers)
+#
+#   Use the ASYNC version when:
+#     - You're building a production API that handles many concurrent requests
+#     - You want FastAPI's full async performance benefits
+#
+# DATABASE URL FORMAT (set in your .env file):
+#   SQLite  (sync) :  sqlite:///./app.db
+#   SQLite  (async):  sqlite+aiosqlite:///./app.db
+#   Postgres(sync) :  postgresql+psycopg2://user:pass@host:port/dbname
+#   Postgres(async):  postgresql+asyncpg://user:pass@host:port/dbname
+#   MySQL   (sync) :  mysql+pymysql://user:pass@host:port/dbname
+#   MySQL   (async):  mysql+aiomysql://user:pass@host:port/dbname
+# =============================================================================
+
+
+# ── Shared imports (used by both sync and async) ──────────────────────────────
+
+from typing import Annotated
+
+from fastapi import Depends
+from sqlmodel import SQLModel
+
+
+# =============================================================================
+# CHOOSE ONE: Comment out the version you are NOT using.
+# =============================================================================
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VERSION A — SYNCHRONOUS (simple, blocking)
+# Best for: SQLite local dev, simple CRUD apps, scripts
+# Driver install: pip install psycopg2-binary  (for Postgres)
+#                 pip install pymysql          (for MySQL)
+#                 SQLite works out of the box
+# ─────────────────────────────────────────────────────────────────────────────
+
+from sqlalchemy import create_engine
+from sqlmodel import Session
+
+# The engine is created ONCE at module import time and lives for the entire
+# app lifetime. It manages a pool of reusable database connections.
+# Never create a new engine per-request — that's expensive and wrong.
+engine = create_engine(
+    url="sqlite:///./app.db",   # ← swap this URL to change your database
+    echo=True,                  # logs every SQL query; set False in production
+    connect_args={
+        # SQLite-specific: SQLite only allows one thread per connection by
+        # default. FastAPI uses multiple threads so we must disable this check.
+        # Remove this line entirely when using Postgres or MySQL.
+        "check_same_thread": False
+    },
+)
+
+
+def create_db_tables() -> None:
+    """
+    Creates all tables that don't yet exist in the database.
+
+    SQLModel.metadata is a global registry. Every class you define with
+    `class MyModel(SQLModel, table=True)` automatically registers itself there.
+    Calling .create_all() fires a `CREATE TABLE IF NOT EXISTS` for each one.
+
+    Call this ONCE on app startup (see main.py lifespan event).
+    It is safe to call multiple times — it skips tables that already exist.
+    """
+    # Import all models here so they register with SQLModel.metadata BEFORE
+    # create_all() runs. If a model file is never imported, its table is never
+    # created. This is the most common "why didn't my table appear" bug.
+    from app.models import Shipment  # noqa: F401 — import for side-effect only
+
+    SQLModel.metadata.create_all(bind=engine)
+
+
+def get_session():
+    """
+    FastAPI dependency that opens a session, yields it to the route,
+    then closes it automatically — even if the route raises an exception.
+
+    The `with` block is a context manager. It handles:
+        __enter__ → opens the session
+        __exit__  → commits if no error, rolls back if there was one, then closes
+
+    Usage in a route:
+        @app.get("/items")
+        def list_items(db: SessionDep):
+            return db.exec(select(Item)).all()
+    """
+    with Session(bind=engine) as session:
+        yield session   # ← route runs here, with the open session injected
+
+
+# Annotated type alias so routes can declare the dependency cleanly.
+# Instead of: def route(db: Session = Depends(get_session))
+# You write:  def route(db: SessionDep)
+SessionDep = Annotated[Session, Depends(get_session)]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VERSION B — ASYNCHRONOUS (non-blocking, production-ready)
+# Best for: Postgres/MySQL production APIs, high concurrency workloads
+# Driver install: pip install asyncpg      (for Postgres)
+#                 pip install aiomysql     (for MySQL)
+#                 pip install aiosqlite    (for SQLite async, dev only)
+# ─────────────────────────────────────────────────────────────────────────────
+
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+
+from app.config import db_setting  # your pydantic-settings config
+
+# Async engine uses an async driver (asyncpg, aiomysql, aiosqlite).
+# It never blocks the event loop while waiting for the database.
+engine = create_async_engine(
+    url=db_setting.POSTGRES_URL,  # e.g. "postgresql+asyncpg://user:pass@host/db"
+    echo=True,                    # logs every SQL; set False in production
+    # pool_size=10,               # optional: max persistent connections (default 5)
+    # max_overflow=20,            # optional: extra connections allowed beyond pool_size
+)
+
+# sessionmaker pre-configures a session factory so we don't repeat
+# class_=AsyncSession and expire_on_commit=False on every call.
+#
+# expire_on_commit=False — important for async:
+#   By default SQLAlchemy "expires" (marks stale) all ORM objects after commit.
+#   Accessing them afterwards fires a new SELECT. In async that SELECT requires
+#   an explicit `await`, or it silently fails. Setting this to False keeps
+#   objects usable with their last-known values after commit.
+AsyncSessionFactory = sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
+
+async def create_db_tables() -> None:
+    """
+    Creates all tables asynchronously on app startup.
+
+    Why engine.begin() instead of engine.connect()?
+        .connect()  → gives you a connection, no automatic transaction
+        .begin()    → opens a connection AND starts a transaction.
+                      Auto-commits on success, auto-rolls back on error.
+                      Safer for DDL operations like CREATE TABLE.
+
+    Why run_sync()?
+        SQLModel.metadata.create_all is a synchronous function — it was
+        written for the blocking SQLAlchemy world. You cannot call it
+        directly inside async code because it would block the event loop,
+        freezing every other request.
+
+        run_sync() solves this by running the sync function in a thread
+        pool executor and returning an awaitable. The event loop stays
+        free while the thread does the blocking work.
+
+        Think of it as: "run this sync function safely from async land."
+    """
+    from app.models import Shipment  # noqa: F401 — register model with metadata
+
+    async with engine.begin() as connection:
+        # run_sync takes the function object (no parentheses!).
+        # It passes the connection as the first argument automatically.
+        await connection.run_sync(SQLModel.metadata.create_all)
+
+
+async def get_session():
+    """
+    Async FastAPI dependency. Opens an AsyncSession, yields it to the route,
+    then closes it. Works identically to the sync version, just non-blocking.
+
+    The `async with` block:
+        __aenter__ → opens an async session from the factory
+        __aexit__  → commits/rollback + closes, all non-blocking
+
+    Usage in a route:
+        @app.get("/items")
+        async def list_items(db: SessionDep):
+            result = await db.exec(select(Item))
+            return result.all()
+    """
+    async with AsyncSessionFactory() as session:
+        yield session   # ← async route runs here, with the session injected
+
+
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+
+# =============================================================================
+# HOW TO WIRE THIS UP IN main.py
+# =============================================================================
+#
+#   from contextlib import asynccontextmanager          # async version
+#   from fastapi import FastAPI
+#   from app.database.session import create_db_tables
+#
+#   @asynccontextmanager
+#   async def lifespan(app: FastAPI):
+#       await create_db_tables()   # runs ONCE on startup
+#       yield                      # app runs here
+#       # (optional teardown code after yield)
+#
+#   app = FastAPI(lifespan=lifespan)
+#
+# -----------------------------------------------------------------------------
+#
+# FULL REQUEST LIFECYCLE (what actually happens per request):
+#
+#   HTTP request arrives
+#         │
+#         ▼
+#   FastAPI resolves Depends(get_session)
+#         │
+#         ▼
+#   get_session() runs → opens session from pool
+#         │
+#         ▼  ← yield hands the session to your route function
+#   Your route executes (db.exec / await db.exec / db.add / etc.)
+#         │
+#         ▼  ← route returns a response
+#   Code after yield runs → session closed, connection returned to pool
+#         │
+#         ▼
+#   HTTP response sent to client
+#
+# =============================================================================
