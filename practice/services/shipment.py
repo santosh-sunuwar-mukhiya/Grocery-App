@@ -27,33 +27,31 @@ class ShipmentService:
         # Return id for later use
         return new_shipment
 
+    async def update(self, id: int, shipment_update: ShipmentUpdate) -> ShipmentUpdate:
+        shipment = await self.session.get(Shipment, id)
 
-async def update(self,id: int,  shipment_update: ShipmentUpdate) -> ShipmentUpdate:
-    shipment_update = shipment_update.model_dump(exclude_unset=True)
+        if not shipment:
+            raise HTTPException(
+                status_code = status.HTTP_404_NOT_FOUND,
+                detail = f"Shipment with #{shipment} does not exist."
+            )
 
-    if not shipment_update:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No data provided to update."
-        )
+        shipment.sqlmodel_update(shipment_update)
+        self.session.add(shipment)
+        await self.session.commit()
+        await self.session.refresh(shipment)
 
-    shipment = await self.session.get(Shipment, id)
-    shipment.sqlmodel_update(shipment_update)
-    self.session.add(shipment)
-    await self.session.commit()
-    await self.session.refresh(shipment)
+        return shipment
 
-    return shipment
+    async def delete(self, id: int):
+        shipment = await self.session.get(Shipment, id)
 
-async def delete(self, id: int) -> dict[str, str]:
-    shipment = await self.session.get(Shipment, id)
+        if not shipment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Shipment not found"
+            )
+        await self.session.delete(shipment)
+        await self.session.commit()
 
-    if not shipment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Shipment not found"
-        )
-    await self.session.delete(shipment)
-    await self.session.commit()
 
-    return {"detail": f"Shipment with id #{id} is deleted!"}
