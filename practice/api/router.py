@@ -1,10 +1,7 @@
-from datetime import datetime, timedelta
-
 from fastapi import APIRouter, HTTPException, status
 
 from practice.api.dependencies import ShipmentServiceDep
-from practice.databases.models import Shipment, ShipmentStatus
-from practice.databases.session import SessionDep
+from practice.databases.models import Shipment
 from practice.api.schemas.shipment import ShipmentRead, ShipmentUpdate, ShipmentCreate
 
 router = APIRouter()
@@ -21,7 +18,7 @@ def root():
 async def get_shipment(id: int, service: ShipmentServiceDep):
     # Check for shipment with given id
     shipment = await service.get(id)
-    if id not in shipment:
+    if not shipment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Given id doesn't exist!",
