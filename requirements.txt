@@ -5,3 +5,6 @@ python-multipart==0.0.6
 sqlmodel
 sqlalchemy
 scalar-fastapi
+passlib
+pyjwt
+pydantic-settings
