@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from practice.api.schemas.shipment import ShipmentCreate, ShipmentUpdate
+from practice.api.schemas.shipment import ShipmentCreate, ShipmentUpdate, ShipmentRead
 from practice.databases.models import Shipment, ShipmentStatus
 
 
@@ -12,7 +12,15 @@ class ShipmentService:
         self.session = session
 
     async def get(self, id: int) -> Shipment:
-        return await self.session.get(Shipment, id)
+        shipment: Shipment | None =  await self.session.get(Shipment, id)
+
+        if not shipment:
+            raise HTTPException(
+                status_code = status.HTTP_404_NOT_FOUND,
+                detail=f"shipment with id #{id} was not found."
+            )
+
+        return shipment
 
     async def add(self, shipment_create: ShipmentCreate) -> Shipment:
         new_shipment = Shipment(
@@ -36,7 +44,8 @@ class ShipmentService:
                 detail = f"Shipment with #{shipment} does not exist."
             )
 
-        shipment.sqlmodel_update(shipment_update)
+        update_dict = shipment_update.model_dump(exclude_unset=True)
+        shipment.sqlmodel_update(update_dict) # type :ignore
         self.session.add(shipment)
         await self.session.commit()
         await self.session.refresh(shipment)
