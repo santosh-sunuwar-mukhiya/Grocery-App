@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from scalar_fastapi import get_scalar_api_reference
 from contextlib import asynccontextmanager
 
-from practice.api.router import router
+from practice.api.router import master_router
 from practice.databases.session import create_db_tables
 
 @asynccontextmanager
@@ -13,7 +13,7 @@ async def lifespan_handler(app: FastAPI):
    print("...Server Stopped and Connection with Tables are closed.")
 app = FastAPI(lifespan=lifespan_handler)
 
-app.include_router(router)
+app.include_router(master_router)
 
 ### Scalar API Documentation
 @app.get("/scalar", include_in_schema=False)
