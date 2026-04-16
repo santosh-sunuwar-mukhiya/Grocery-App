@@ -20,5 +20,13 @@ class Setting(BaseSettings):
         # postgres_url = "postgresql+asyncpg://username:password@host:port/db_name"
         return f"postgresql+asyncpg://{self.POSTGRES_USERNAME}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
+class SecuritySettings(BaseSettings):
+    JWT_SECRET: str
+    JWT_ALGORITHM: str
+
+    model_config = _base_config
+
 db_setting = Setting()
+security_settings = SecuritySettings()
+
 print(db_setting.POSTGRES_URL)

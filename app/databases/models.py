@@ -14,11 +14,14 @@ class Task(SQLModel, table=True):
     description: str
     status: TaskStatus
     estimated_time: datetime
+    owner_id: int = Field(foreign_key="seller.id")
 
 
 class User(SQLModel, table=True):
     id: int = Field(primary_key=True, index = True)
     username: str
     email: EmailStr
-    password_hashed: str
+    password_hash: str
+
+    task: "Task" = back_populates(relationship)
 
