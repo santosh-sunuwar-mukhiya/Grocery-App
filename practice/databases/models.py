@@ -1,7 +1,9 @@
 from enum import Enum
 from datetime import datetime
-from sqlmodel import SQLModel, Field
 
+from pydantic import EmailStr
+from sqlmodel import SQLModel, Field, Column
+from sqlalchemy import Text
 
 class ShipmentStatus(str, Enum):
     placed = "placed"
@@ -17,3 +19,10 @@ class Shipment(SQLModel, table=True):
     destination: int
     status: ShipmentStatus
     estimated_delivery: datetime
+
+class Seller(SQLModel, table=True):
+    id: int = Field(primary_key = True, index=True)
+    name: str
+
+    email: EmailStr
+    password_hash: str = Field(sa_column=Column(Text))

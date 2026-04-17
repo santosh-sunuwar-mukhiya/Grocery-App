@@ -1,7 +1,8 @@
 from datetime import datetime
 
 from pydantic import EmailStr
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Column
+from sqlalchemy import Text
 from enum import Enum
 
 class TaskStatus(str, Enum):
@@ -14,14 +15,10 @@ class Task(SQLModel, table=True):
     description: str
     status: TaskStatus
     estimated_time: datetime
-    owner_id: int = Field(foreign_key="seller.id")
-
 
 class User(SQLModel, table=True):
     id: int = Field(primary_key=True, index = True)
     username: str
     email: EmailStr
-    password_hash: str
-
-    task: "Task" = back_populates(relationship)
+    password_hash: str = Field(sa_column=Column(Text))
 
