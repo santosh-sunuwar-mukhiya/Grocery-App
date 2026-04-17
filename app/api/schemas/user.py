@@ -2,15 +2,15 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class UserBase(BaseModel):
-    id: int
     username: str
 
 class UserRead(UserBase):
-    pass
+    id: int
+    email: EmailStr
 
 class UserCreate(UserBase):
     email: EmailStr
-    password_hashed: str
+    password: str
 
 class UserUpdate(BaseModel):
     username: str | None = Field(default=None)
