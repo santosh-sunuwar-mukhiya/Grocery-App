@@ -32,7 +32,7 @@ class SellerService:
 
     async def token(self, email: EmailStr, password) -> str:
         result = await self.session.execute(
-            select(Seller).where(Seller.email == email)
+            select(Seller).where(Seller.email == email)  # type: ignore
         )
         seller = result.scalar()
 
@@ -58,12 +58,9 @@ class SellerService:
             )
 
         token = generate_access_token(
-            data={
-                "user": {
-                    "name": seller.name,
-                    "email": seller.email,
-                }
-            }
+            data={"user": {"name": seller.name, "id": seller.id}}
         )
+        print(f"[DEBUG] Generated token: '{token}'")
+        print(f"[DEBUG] Generated length: {len(token)}")
 
         return token

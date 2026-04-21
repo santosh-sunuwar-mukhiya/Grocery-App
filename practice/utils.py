@@ -17,9 +17,19 @@ def generate_access_token(data: dict, expiry: timedelta = timedelta(minutes=15))
     )
 
 
-def decode_access_token(token: str) -> dict:
-    return jwt.decode(
-        jwt=token,
-        key=security_settings.JWT_SECRET,
-        algorithms=[security_settings.JWT_ALGORITHM],
-    )
+def decode_access_token(token: str) -> dict | None:
+    try:
+        print(f"[DEBUG] Decoding token: {token[:30]}...")
+        print(f"[DEBUG] Secret being used: {security_settings.JWT_SECRET}")
+        print(f"[DEBUG] Algorithm: {security_settings.JWT_ALGORITHM}")
+        return jwt.decode(
+            jwt=token,
+            key=security_settings.JWT_SECRET,
+            algorithms=[security_settings.JWT_ALGORITHM],
+        )
+    except Exception as e:  # ← catch ALL exceptions temporarily
+        print(f"[DEBUG] Error type: {type(e).__name__}")
+        print(f"[DEBUG] Error message: {e}")
+        print(f"[DEBUG] Received token:  '{token}'")
+        print(f"[DEBUG] Received length: {len(token)}")
+        return None
