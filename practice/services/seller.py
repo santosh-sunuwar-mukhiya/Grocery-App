@@ -1,17 +1,16 @@
-from datetime import datetime, timedelta, timezone
-
 from fastapi import HTTPException, status
-import jwt
 from pydantic import EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from practice.api.schemas.seller import SellerCreate
-from practice.config import security_settings
 from practice.databases.models import Seller
 
 from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
+
+from practice.utils import generate_access_token
+
 _password_hash = PasswordHash((Argon2Hasher(),))
 
 class SellerService:
@@ -58,17 +57,13 @@ class SellerService:
                 detail="Email or Password is incorrect.",
             )
 
-        token = jwt.encode(
-            payload = {
+        token = generate_access_token(
+            data={
                 "user": {
                     "name": seller.name,
                     "email": seller.email,
-                },
-                "exp": datetime.now(timezone.utc) + timedelta(minutes=15),
-            },
-            algorithm=security_settings.JWT_ALGORITHM,
-            key=security_settings.JWT_SECRET,
+                }
+            }
         )
 
         return token
-
