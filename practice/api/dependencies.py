@@ -1,59 +1,133 @@
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import HTTPException, status
-from typing import Annotated
-
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from practice.databases.models import Seller
+from practice.core.security import oauth2_scheme_seller, oauth2_scheme_partner
+from practice.databases.models import DeliveryPartner, Seller
 from practice.databases.redis import is_jti_blacklisted
 from practice.databases.session import get_session
+from practice.services.delivery_partner import DeliveryPartnerService
 from practice.services.seller import SellerService
 from practice.services.shipment import ShipmentService
-from practice.core.security import oauth2_scheme
 from practice.utils import decode_access_token
 
+
+# Asynchronous database session dep annotation
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
-# access token dep
-async def get_access_token(
-    token: Annotated[str, Depends(oauth2_scheme)], session: SessionDep
-) -> dict:
-
+# Access token data dep
+async def _get_access_token(token: str) -> dict:
     data = decode_access_token(token)
 
+    # Validate the token
     if data is None or await is_jti_blacklisted(data["jti"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or Expired access token.",
+            detail="Invalid or expired access token",
         )
 
     return data
 
 
-# Logged in Seller
+# Seller access token data
+async def get_seller_access_token(
+    token: Annotated[str, Depends(oauth2_scheme_seller)],
+) -> dict:
+    return await _get_access_token(token)
+
+
+# Delivery partner access token data
+async def get_partner_access_token(
+    token: Annotated[str, Depends(oauth2_scheme_partner)],
+) -> dict:
+    return await _get_access_token(token)
+
+
+# Logged In Seller
 async def get_current_seller(
-    token_data: Annotated[dict, Depends(get_access_token)], session: SessionDep
+    token_data: Annotated[dict, Depends(get_seller_access_token)],
+    session: SessionDep,
 ):
-    return await session.get(Seller, UUID(token_data["user"]["id"]))
+    seller = await session.get(
+        Seller,
+        UUID(token_data["user"]["id"]),
+    )
+
+    if seller is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized User",
+        )
+
+    return seller
 
 
+# Logged In Delivery partner
+async def get_current_partner(
+    token_data: Annotated[dict, Depends(get_partner_access_token)],
+    session: SessionDep,
+):
+    partner = await session.get(
+        DeliveryPartner,
+        UUID(token_data["user"]["id"]),
+    )
+
+    if partner is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authorized",
+        )
+
+    return partner
+
+
+# Shipment service dep
 def get_shipment_service(session: SessionDep):
-    return ShipmentService(session)
+    return ShipmentService(
+        session,
+        DeliveryPartnerService(session),  # type: ignore
+    )
 
+
+# Seller service dep
 def get_seller_service(session: SessionDep):
     return SellerService(session)
 
+
+# Delivery partner service dep
+def get_delivery_partner_service(session: SessionDep):
+    return DeliveryPartnerService(session)
+
+
+# Seller dep annotation
 SellerDep = Annotated[
-    Seller, Depends(get_current_seller)
-]  # Current Active Seller Dependencey.
+    Seller,
+    Depends(get_current_seller),
+]
 
-SellerServiceDep = Annotated[
-    SellerService, Depends(get_seller_service)
-]  # Seller Service Dependencey.
+# Delivery partner dep annotation
+DeliveryPartnerDep = Annotated[
+    DeliveryPartner,
+    Depends(get_current_partner),
+]
 
+# Shipment service dep annotation
 ShipmentServiceDep = Annotated[
-    ShipmentService, Depends(get_shipment_service)
-]  # Shipment Service Dependency.
+    ShipmentService,
+    Depends(get_shipment_service),
+]
+
+# Seller service dep annotation
+SellerServiceDep = Annotated[
+    SellerService,
+    Depends(get_seller_service),
+]
+
+# Delivery partner service dep annotaion
+DeliveryPartnerServiceDep = Annotated[
+    DeliveryPartnerService,
+    Depends(get_delivery_partner_service),
+]
