@@ -1,21 +1,24 @@
 from fastapi import HTTPException, status, APIRouter
 
-from practice.api.dependencies import ShipmentServiceDep
+from practice.api.dependencies import SellerDep, ShipmentServiceDep
 from practice.api.schemas.shipment import ShipmentRead, ShipmentCreate, ShipmentUpdate
 from practice.databases.models import Shipment
 
 router = APIRouter(prefix="/shipment", tags=['Shipment'])
 
+
 ###  a shipment by id
 @router.get("/shipment", response_model=ShipmentRead)
-async def get_shipment(id: int, service: ShipmentServiceDep):
+async def get_shipment(id: int, service: ShipmentServiceDep, _: SellerDep):
     shipment = await service.get(id)
     return shipment
 
 
 ### Create a new shipment with content and weight
 @router.post("/shipment", status_code = status.HTTP_201_CREATED, response_model = ShipmentRead)
-async def submit_shipment(shipment: ShipmentCreate, service: ShipmentServiceDep) -> Shipment:
+async def submit_shipment(
+    shipment: ShipmentCreate, service: ShipmentServiceDep, _: SellerDep
+) -> Shipment:
     return await service.add(shipment)
 
 
@@ -37,6 +40,8 @@ async def update_shipment(id: int, shipment_update: ShipmentUpdate, service: Shi
 
 ### Delete a shipment by id
 @router.delete("/shipment")
-async def delete_shipment(id: int, service: ShipmentServiceDep) -> dict[str, str]:
+async def delete_shipment(
+    id: int, service: ShipmentServiceDep, _: SellerDep
+) -> dict[str, str]:
     await service.delete(id)
     return {"detail": f"Shipment with id #{id} is deleted!"}
