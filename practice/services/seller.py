@@ -58,7 +58,7 @@ class SellerService:
             )
 
         token = generate_access_token(
-            data={"user": {"name": seller.name, "id": seller.id}}
+            data={"user": {"name": seller.name, "id": str(seller.id)}}
         )
         print(f"[DEBUG] Generated token: '{token}'")
         print(f"[DEBUG] Generated length: {len(token)}")

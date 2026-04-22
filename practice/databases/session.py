@@ -13,17 +13,15 @@ engine = create_async_engine(
 )
 
 AsyncSessionFactory = sessionmaker(
-    bind=engine,
-    class_ = AsyncSession,
-    expire_on_commit = False
-)
+    bind=engine, class_=AsyncSession, expire_on_commit=False  # type: ignore
+)  # type: ignore
 
-from practice.databases.models import Shipment
+from practice.databases.models import Shipment, Seller
+
 async def create_db_tables():
     async with engine.begin() as connection:
         await connection.run_sync(SQLModel.metadata.create_all)
 
 async def get_session():
-   async with AsyncSessionFactory() as session:
-       yield session
-
+    async with AsyncSessionFactory() as session:  # type: ignore
+        yield session

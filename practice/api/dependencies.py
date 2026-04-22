@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import HTTPException, status
 from typing import Annotated
 
@@ -35,7 +37,7 @@ async def get_access_token(
 async def get_current_seller(
     token_data: Annotated[dict, Depends(get_access_token)], session: SessionDep
 ):
-    return await session.get(Seller, token_data["user"]["id"])
+    return await session.get(Seller, UUID(token_data["user"]["id"]))
 
 
 def get_shipment_service(session: SessionDep):

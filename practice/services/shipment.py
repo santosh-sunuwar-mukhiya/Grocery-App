@@ -1,17 +1,18 @@
 from datetime import datetime, timedelta
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from practice.api.schemas.shipment import ShipmentCreate, ShipmentUpdate, ShipmentRead
-from practice.databases.models import Shipment, ShipmentStatus
+from practice.databases.models import Seller, Shipment, ShipmentStatus
 
 
 class ShipmentService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get(self, id: int) -> Shipment:
+    async def get(self, id: UUID) -> Shipment:
         shipment: Shipment | None =  await self.session.get(Shipment, id)
 
         if not shipment:
@@ -22,11 +23,12 @@ class ShipmentService:
 
         return shipment
 
-    async def add(self, shipment_create: ShipmentCreate) -> Shipment:
+    async def add(self, shipment_create: ShipmentCreate, seller: Seller) -> Shipment:
         new_shipment = Shipment(
             **shipment_create.model_dump(),
             status=ShipmentStatus.placed,
-            estimated_delivery=datetime.now() + timedelta(days=3)
+            estimated_delivery=datetime.now() + timedelta(days=3),
+            seller_id=seller.id,
         )
 
         self.session.add(new_shipment)
@@ -35,7 +37,7 @@ class ShipmentService:
         # Return id for later use
         return new_shipment
 
-    async def update(self, id: int, shipment_update: ShipmentUpdate) -> Shipment:
+    async def update(self, id: UUID, shipment_update: ShipmentUpdate) -> Shipment:
         shipment = await self.session.get(Shipment, id)
 
         if not shipment:
@@ -52,7 +54,7 @@ class ShipmentService:
 
         return shipment
 
-    async def delete(self, id: int):
+    async def delete(self, id: UUID):
         shipment = await self.session.get(Shipment, id)
 
         if not shipment:

@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import HTTPException, status, APIRouter
 
 from practice.api.dependencies import SellerDep, ShipmentServiceDep
@@ -9,7 +11,7 @@ router = APIRouter(prefix="/shipment", tags=['Shipment'])
 
 ###  a shipment by id
 @router.get("/shipment", response_model=ShipmentRead)
-async def get_shipment(id: int, service: ShipmentServiceDep, _: SellerDep):
+async def get_shipment(id: UUID, service: ShipmentServiceDep, seller: SellerDep):
     shipment = await service.get(id)
     return shipment
 
@@ -17,14 +19,19 @@ async def get_shipment(id: int, service: ShipmentServiceDep, _: SellerDep):
 ### Create a new shipment with content and weight
 @router.post("/shipment", status_code = status.HTTP_201_CREATED, response_model = ShipmentRead)
 async def submit_shipment(
-    shipment: ShipmentCreate, service: ShipmentServiceDep, _: SellerDep
+    shipment: ShipmentCreate, service: ShipmentServiceDep, seller: SellerDep
 ) -> Shipment:
-    return await service.add(shipment)
+    return await service.add(shipment, seller)
 
 
 ### Update fields of a shipment
 @router.patch("/shipment", response_model=ShipmentRead)
-async def update_shipment(id: int, shipment_update: ShipmentUpdate, service: ShipmentServiceDep):
+async def update_shipment(
+    id: UUID,
+    shipment_update: ShipmentUpdate,
+    service: ShipmentServiceDep,
+    seller: SellerDep,
+):
     update_shipment = shipment_update.model_dump(exclude_unset=True)
 
     if not update_shipment:
@@ -41,7 +48,7 @@ async def update_shipment(id: int, shipment_update: ShipmentUpdate, service: Shi
 ### Delete a shipment by id
 @router.delete("/shipment")
 async def delete_shipment(
-    id: int, service: ShipmentServiceDep, _: SellerDep
+    id: UUID, service: ShipmentServiceDep, seller: SellerDep
 ) -> dict[str, str]:
     await service.delete(id)
     return {"detail": f"Shipment with id #{id} is deleted!"}
