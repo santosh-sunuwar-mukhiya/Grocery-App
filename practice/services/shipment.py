@@ -35,7 +35,7 @@ class ShipmentService:
         # Return id for later use
         return new_shipment
 
-    async def update(self, id: int, shipment_update: ShipmentUpdate) -> ShipmentUpdate:
+    async def update(self, id: int, shipment_update: ShipmentUpdate) -> Shipment:
         shipment = await self.session.get(Shipment, id)
 
         if not shipment:
@@ -62,5 +62,3 @@ class ShipmentService:
             )
         await self.session.delete(shipment)
         await self.session.commit()
-
-
