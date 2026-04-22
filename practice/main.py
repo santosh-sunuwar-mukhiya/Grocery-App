@@ -15,6 +15,12 @@ app = FastAPI(lifespan=lifespan_handler)
 
 app.include_router(master_router)
 
+
+@app.get("/root")
+def root():
+    return {"detail": "Hello World!"}
+
+
 ### Scalar API Documentation
 @app.get("/scalar", include_in_schema=False)
 def get_scalar_docs():
